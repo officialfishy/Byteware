@@ -1,90 +1,186 @@
 plugins {
-	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
-	id 'maven-publish'
+    id "fabric-loom" version "1.9-SNAPSHOT"
+    id "maven-publish"
+    id "com.github.johnrengelman.shadow" version "8.1.1"
 }
 
-version = project.mod_version
-group = project.maven_group
-
 base {
-	archivesName = project.archives_base_name
+    archivesBaseName = project.archives_base_name
+    version = project.mod_version + (project.hasProperty("devbuild") ? ("-" + project.findProperty("devbuild")) : "")
+    group = project.maven_group
 }
 
 repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
+    maven {
+        name = "meteor-maven"
+        url = "https://maven.meteordev.org/releases"
+    }
+    maven {
+        name = "meteor-maven-snapshots"
+        url = "https://maven.meteordev.org/snapshots"
+    }
+    maven {
+        name = "modrinth"
+        url = "https://api.modrinth.com/maven"
+
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+    maven {
+        name = "vram"
+        url = "https://maven.vram.io//"
+    }
+    maven {
+        name = "ViaVersion"
+        url = "https://repo.viaversion.com"
+    }
+    // maven {
+    //     name = 'babbaj-repo'
+    //     url = 'https://babbaj.github.io/maven/'
+    // }
+    mavenCentral()
 }
 
-loom {
-	splitEnvironmentSourceSets()
+configurations {
+    // include mods
+    modImplementation.extendsFrom(modInclude)
+    include.extendsFrom(modInclude)
 
-	mods {
-		"modid" {
-			sourceSet sourceSets.main
-			sourceSet sourceSets.client
-		}
-	}
-
+    // include libraries
+    implementation.extendsFrom(library)
+    shadow.extendsFrom(library)
 }
 
 dependencies {
-	// To change the versions see the gradle.properties file
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings loom.officialMojangMappings()
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    // Fabric
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modInclude fabricApi.module("fabric-resource-loader-v0", project.fapi_version)
 
-	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-	
+    // Compat fixes
+    modCompileOnly fabricApi.module("fabric-renderer-indigo", project.fapi_version)
+    modCompileOnly("maven.modrinth:sodium:${project.sodium_version}") { transitive = false }
+    modCompileOnly("maven.modrinth:lithium:${project.lithium_version}") { transitive = false }
+    modCompileOnly("maven.modrinth:iris:${project.iris_version}") { transitive = false }
+    modCompileOnly("de.florianmichael:ViaFabricPlus:${project.viafabricplus_version}") { transitive = false }
+
+    // Baritone (https://github.com/MeteorDevelopment/baritone)
+    modCompileOnly "meteordevelopment:baritone:${project.baritone_version}-SNAPSHOT"
+
+    // Nether pathfinder
+    // implementation "dev.babbaj:nether-pathfinder:${project.nether_pathfinder_version}"
+
+    // Libraries
+    library "meteordevelopment:orbit:${project.orbit_version}"
+    library "meteordevelopment:starscript:${project.starscript_version}"
+    library "meteordevelopment:discord-ipc:${project.discordipc_version}"
+    library "org.reflections:reflections:${project.reflections_version}"
+    library("io.netty:netty-handler-proxy:${project.netty_version}") { transitive = false }
+    library("io.netty:netty-codec-socks:${project.netty_version}") { transitive = false }
+    library "de.florianmichael:WaybackAuthLib:${project.waybackauthlib_version}"
+
+    // Launch sub project
+    shadow project(":launch")
 }
 
-processResources {
-	inputs.property "version", project.version
-
-	filesMatching("fabric.mod.json") {
-		expand "version": inputs.properties.version
-	}
+loom {
+    accessWidenerPath = file("src/main/resources/meteor-client.accesswidener")
 }
 
-tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+afterEvaluate {
+    migrateMappings.configure {
+        outputDir = project.file("src/main/java")
+    }
 }
 
-java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
-	withSourcesJar()
+tasks {
+    processResources {
+        def propertyMap = [
+            "version"          : project.version,
+            "devbuild"         : project.findProperty("devbuild") ?: "",
+            "commit"           : project.findProperty("commit") ?: "",
+            "minecraft_version": project.minecraft_version,
+            "loader_version"   : project.loader_version
+        ]
 
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+        inputs.properties(propertyMap)
+        filesMatching("fabric.mod.json") {
+            expand(propertyMap)
+        }
+    }
+
+    jar {
+        from("LICENSE") {
+            rename { "${it}_${project.base.archivesBaseName}" }
+        }
+
+        manifest {
+            attributes("Main-Class": "meteordevelopment.meteorclient.Main")
+        }
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+
+        withSourcesJar()
+        withJavadocJar()
+    }
+
+    shadowJar {
+        configurations = [project.configurations.shadow]
+
+        from("LICENSE") {
+            rename { "${it}_${project.base.archivesBaseName}" }
+        }
+
+        dependencies {
+            exclude {
+                it.moduleGroup == "org.slf4j"
+            }
+        }
+    }
+
+    remapJar {
+        dependsOn shadowJar
+        inputFile.set(shadowJar.archiveFile)
+    }
+
+    javadoc {
+        options.addStringOption("Xdoclint:none", "-quiet")
+        options.encoding = "UTF-8"
+    }
+
+    build {
+        dependsOn javadocJar
+    }
 }
 
-jar {
-	inputs.property "archivesName", project.base.archivesName
-
-	from("LICENSE") {
-		rename { "${it}_${inputs.properties.archivesName}"}
-	}
-}
-
-// configure the maven publication
 publishing {
-	publications {
-		create("mavenJava", MavenPublication) {
-			artifactId = project.archives_base_name
-			from components.java
-		}
-	}
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = "meteor-client"
+            version = project.hasProperty("devbuild") ? (project.mod_version + "-SNAPSHOT") : project.mod_version
 
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
-	}
+            from components.java
+        }
+    }
+
+    repositories {
+        maven {
+            name = "meteor-maven"
+            url = project.hasProperty("devbuild") ? "https://maven.meteordev.org/snapshots" : "https://maven.meteordev.org/releases"
+
+            credentials {
+                username = System.getenv("MAVEN_METEOR_ALIAS")
+                password = System.getenv("MAVEN_METEOR_TOKEN")
+            }
+
+            authentication {
+                basic(BasicAuthentication)
+            }
+        }
+    }
 }
