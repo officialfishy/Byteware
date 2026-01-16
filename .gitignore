@@ -1,0 +1,10 @@
+.gradle/
+build/
+out/
+run/
+*.log
+*.tmp
+*.iml
+.idea/
+.vscode/
+.DS_Store
