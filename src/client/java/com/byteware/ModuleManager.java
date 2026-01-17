@@ -14,12 +14,15 @@ public final class ModuleManager {
 
     public static void init() {
         MODULES.clear();
+
         MODULES.add(new AutoSprintModule());
         MODULES.add(new FullbrightModule());
         MODULES.add(new AutoTotemModule());
         MODULES.add(new TriggerBotModule());
         MODULES.add(new AutoToolModule());
         MODULES.add(new AutoEatModule());
+        MODULES.add(new EspModule());
+        MODULES.add(new StorageEspModule());
 
         prevDown.clear();
         for (Module m : MODULES) prevDown.put(m, false);
@@ -31,6 +34,10 @@ public final class ModuleManager {
         return out;
     }
 
+    public static List<Module> getAll() {
+        return MODULES;
+    }
+
     public static void toggle(Module m) {
         m.toggle();
         NotificationManager.push(m.getName() + (m.isEnabled() ? " ON" : " OFF"));
@@ -39,12 +46,12 @@ public final class ModuleManager {
     public static void onTick(MinecraftClient client) {
         if (client == null) return;
 
-        // Run enabled module logic
+        // module logic
         for (Module m : MODULES) {
             if (m.isEnabled()) m.onTick(client);
         }
 
-        // Keybind toggles (edge-trigger)
+        // keybind toggles (edge trigger)
         long window = client.getWindow().getHandle();
 
         for (Module m : MODULES) {
@@ -54,9 +61,7 @@ public final class ModuleManager {
             boolean down = GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS;
             boolean wasDown = prevDown.getOrDefault(m, false);
 
-            if (down && !wasDown) {
-                toggle(m);
-            }
+            if (down && !wasDown) toggle(m);
 
             prevDown.put(m, down);
         }

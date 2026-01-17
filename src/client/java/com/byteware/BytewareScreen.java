@@ -38,6 +38,14 @@ public class BytewareScreen extends Screen {
     private Rect removeHeldRect = null;
     private Rect clearListRect = null;
 
+    // ESP extra click zones (only when openModule is EspModule)
+    private Rect espPlayersRect = null;
+    private Rect espPlayersColorRect = null;
+    private Rect espHostilesRect = null;
+    private Rect espHostilesColorRect = null;
+    private Rect espPassivesRect = null;
+    private Rect espPassivesColorRect = null;
+
     // --- basic rect ---
     private static final class Rect {
         final int x, y, w, h;
@@ -164,9 +172,17 @@ public class BytewareScreen extends Screen {
         removeHeldRect = null;
         clearListRect = null;
 
+        espPlayersRect = null;
+        espPlayersColorRect = null;
+        espHostilesRect = null;
+        espHostilesColorRect = null;
+        espPassivesRect = null;
+        espPassivesColorRect = null;
+
         if (openModule != null && openModuleRect != null) {
 
             boolean isAutoEat = (openModule instanceof AutoEatModule);
+            boolean isEsp = (openModule instanceof EspModule);
 
             // Popup sizing + spacing
             int popW = 210;
@@ -175,10 +191,10 @@ public class BytewareScreen extends Screen {
             int headerH = 22;       // space from top to first line baseline
             int bottomPad = 14;     // footer space
 
-            // how many rows we render inside popup (excluding title)
-            // keybind always 1
-            int rows = 1;
+            // rows inside popup (excluding title)
+            int rows = 1; // keybind always
             if (isAutoEat) rows += 5; // EatToFull, ListMode, Add, Remove, Clear
+            if (isEsp) rows += 6;     // Players, PlayersColor, Hostiles, HostilesColor, Passives, PassivesColor
 
             int popH = headerH + (rows * lineH) + bottomPad;
 
@@ -245,6 +261,47 @@ public class BytewareScreen extends Screen {
                 clearListRect = new Rect(px + 6, lineY - 3, popW - 12, 14);
                 drawHoverLine(context, clearListRect, mouseX, mouseY);
                 context.drawTextWithShadow(this.textRenderer, clr, px + 8, lineY, 0xFF8888);
+            }
+
+            // ---- ESP settings lines ----
+            if (isEsp) {
+                EspModule em = (EspModule) openModule;
+
+                lineY += lineH;
+                String p = "Players: " + (em.playersEnabled() ? "ON" : "OFF");
+                espPlayersRect = new Rect(px + 6, lineY - 3, popW - 12, 14);
+                drawHoverLine(context, espPlayersRect, mouseX, mouseY);
+                context.drawTextWithShadow(this.textRenderer, p, px + 8, lineY, 0xAAAAAA);
+
+                lineY += lineH;
+                String pc = "Players Color: click";
+                espPlayersColorRect = new Rect(px + 6, lineY - 3, popW - 12, 14);
+                drawHoverLine(context, espPlayersColorRect, mouseX, mouseY);
+                context.drawTextWithShadow(this.textRenderer, pc, px + 8, lineY, 0xAAAAAA);
+
+                lineY += lineH;
+                String h = "Hostiles: " + (em.hostilesEnabled() ? "ON" : "OFF");
+                espHostilesRect = new Rect(px + 6, lineY - 3, popW - 12, 14);
+                drawHoverLine(context, espHostilesRect, mouseX, mouseY);
+                context.drawTextWithShadow(this.textRenderer, h, px + 8, lineY, 0xAAAAAA);
+
+                lineY += lineH;
+                String hc = "Hostiles Color: click";
+                espHostilesColorRect = new Rect(px + 6, lineY - 3, popW - 12, 14);
+                drawHoverLine(context, espHostilesColorRect, mouseX, mouseY);
+                context.drawTextWithShadow(this.textRenderer, hc, px + 8, lineY, 0xAAAAAA);
+
+                lineY += lineH;
+                String pa = "Passives: " + (em.passivesEnabled() ? "ON" : "OFF");
+                espPassivesRect = new Rect(px + 6, lineY - 3, popW - 12, 14);
+                drawHoverLine(context, espPassivesRect, mouseX, mouseY);
+                context.drawTextWithShadow(this.textRenderer, pa, px + 8, lineY, 0xAAAAAA);
+
+                lineY += lineH;
+                String pac = "Passives Color: click";
+                espPassivesColorRect = new Rect(px + 6, lineY - 3, popW - 12, 14);
+                drawHoverLine(context, espPassivesColorRect, mouseX, mouseY);
+                context.drawTextWithShadow(this.textRenderer, pac, px + 8, lineY, 0xAAAAAA);
             }
 
             // footer
@@ -339,6 +396,46 @@ public class BytewareScreen extends Screen {
                     if (clearListRect != null && clearListRect.hit(mouseX, mouseY)) {
                         ae.clearList();
                         NotificationManager.push("AutoEat list cleared");
+                        return true;
+                    }
+                }
+
+                // ESP settings clicks
+                if (openModule instanceof EspModule em) {
+
+                    if (espPlayersRect != null && espPlayersRect.hit(mouseX, mouseY)) {
+                        em.setPlayers(!em.playersEnabled());
+                        NotificationManager.push("ESP Players: " + (em.playersEnabled() ? "ON" : "OFF"));
+                        return true;
+                    }
+
+                    if (espPlayersColorRect != null && espPlayersColorRect.hit(mouseX, mouseY)) {
+                        em.setPlayersColor(em.cycleColor(em.getPlayersColor()));
+                        NotificationManager.push("ESP Players Color changed");
+                        return true;
+                    }
+
+                    if (espHostilesRect != null && espHostilesRect.hit(mouseX, mouseY)) {
+                        em.setHostiles(!em.hostilesEnabled());
+                        NotificationManager.push("ESP Hostiles: " + (em.hostilesEnabled() ? "ON" : "OFF"));
+                        return true;
+                    }
+
+                    if (espHostilesColorRect != null && espHostilesColorRect.hit(mouseX, mouseY)) {
+                        em.setHostilesColor(em.cycleColor(em.getHostilesColor()));
+                        NotificationManager.push("ESP Hostiles Color changed");
+                        return true;
+                    }
+
+                    if (espPassivesRect != null && espPassivesRect.hit(mouseX, mouseY)) {
+                        em.setPassives(!em.passivesEnabled());
+                        NotificationManager.push("ESP Passives: " + (em.passivesEnabled() ? "ON" : "OFF"));
+                        return true;
+                    }
+
+                    if (espPassivesColorRect != null && espPassivesColorRect.hit(mouseX, mouseY)) {
+                        em.setPassivesColor(em.cycleColor(em.getPassivesColor()));
+                        NotificationManager.push("ESP Passives Color changed");
                         return true;
                     }
                 }

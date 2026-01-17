@@ -18,6 +18,9 @@ public class BytewareClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ModuleManager.init();
+        BytewareHud.init();
+        EspRenderer.init();
+        StorageEspRenderer.init();
 
         openMenuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.byteware.open_menu",
